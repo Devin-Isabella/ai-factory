@@ -1,28 +1,5 @@
-﻿# Python / FastAPI
+﻿.vscode/
+.venv/
 __pycache__/
 *.pyc
-.venv/
 .env
-.env.* 
-*.sqlite3
-
-# Node / frontend (if any)
-node_modules/
-dist/
-build/
-
-# OS / editors
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# Docker & Compose
-*.log
-*.pid
-docker-data/
-*.local.yml
-
-# Cloudflared creds
-*.json
-.cloudflared/

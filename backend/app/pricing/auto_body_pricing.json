@@ -1,0 +1,12 @@
+﻿{
+  "bumper_dent": [500, 900],
+  "headlight_crack": [250, 450],
+  "taillight_crack": [200, 350],
+  "grille_damage": [180, 400],
+  "door_dent": [300, 700],
+  "fender_dent": [280, 650],
+  "paint_scratch": [150, 500],
+  "windshield_crack": [250, 600],
+  "mirror_damage": [120, 280],
+  "hood_damage": [400, 1000]
+}
