@@ -1,0 +1,30 @@
+﻿services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: always
+    container_name: ai_factory_db
+    environment:
+      POSTGRES_USER: 
+      POSTGRES_PASSWORD: 
+      POSTGRES_DB: 
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: ai_factory_backend
+    env_file: .env
+    environment:
+      OPENAI_API_KEY: 
+      DATABASE_URL: 
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
+
+

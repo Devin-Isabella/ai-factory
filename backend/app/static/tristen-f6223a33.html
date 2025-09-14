@@ -1,0 +1,85 @@
+﻿<!doctype html>
+<meta charset="utf-8"/>
+<title>Tristen — Book</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px;line-height:1.45}
+  h1{margin:0 0 6px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  button,input,select{font-size:16px;padding:8px}
+  .slot{display:inline-block;margin:6px 8px 6px 0}
+  .pill{padding:8px 10px;border:1px solid #e5e7eb;border-radius:999px;cursor:pointer}
+  .pill:hover{background:#f3f4f6}
+  .muted{color:#6b7280}
+  .bar{border-top:1px solid #e5e7eb;margin:16px 0}
+</style>
+<h1>Tristen — Book an appointment</h1>
+<div class="muted">devinisabella1@gmail.com · Arizona · 60-minute slots</div>
+
+<div class="row">
+  <label for="date">Date:</label>
+  <input id="date" type="date"/>
+  <label for="fmt">Time format:</label>
+  <select id="fmt">
+    <option value="12">12-hour</option>
+    <option value="24">24-hour</option>
+  </select>
+  <button id="load">Load slots</button>
+</div>
+
+<div id="slots">Pick a date and click “Load slots”.</div>
+
+<div class="bar"></div>
+<div class="muted">Powered by your calendar bot.</div>
+
+<script>
+const cal = "f6223a33";
+const tz  = "Arizona";
+function fmtTime(iso, mode){
+  const d = new Date(iso);
+  const opt = { hour: "numeric", minute: "2-digit", hour12: (mode==="12"), timeZone: tz };
+  return new Intl.DateTimeFormat([], opt).format(d);
+}
+function ymd(d){
+  const z = n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate());
+}
+async function load(){
+  const mode = document.getElementById("fmt").value;
+  const dateEl = document.getElementById("date");
+  const day = dateEl.value || ymd(new Date());
+  const wrap = document.getElementById("slots");
+  wrap.textContent = "Loading…";
+  try{
+    const r = await fetch(/calendar/@{id=f6223a33; booking_url=/calendar/f6223a33/book; owner=Tristen; timezone=Arizona}/slots?date_str=);
+    if(!r.ok){ wrap.textContent = await r.text(); return; }
+    const j = await r.json();
+    if(!j.slots || j.slots.length===0){ wrap.textContent = "No available slots."; return; }
+    wrap.innerHTML = "";
+    j.slots.forEach(s=>{
+      const b = document.createElement("button");
+      b.className = "pill slot";
+      b.textContent = ${fmtTime(s.start, mode)} → ;
+      b.onclick = async ()=>{
+        const name = prompt("Your name");
+        const email = prompt("Your email");
+        if(!name || !email) return;
+        const res = await fetch(/calendar/@{id=f6223a33; booking_url=/calendar/f6223a33/book; owner=Tristen; timezone=Arizona}/book, {
+          method:"POST",
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name, email, start:s.start, end:s.end})
+        });
+        if(!res.ok){ alert(await res.text()); return; }
+        const jj = await res.json();
+        alert("Booked! We emailed the owner.");
+      };
+      wrap.appendChild(b);
+    });
+  } catch(e){
+    wrap.textContent = String(e);
+  }
+}
+document.getElementById("load").onclick = load;
+document.getElementById("fmt").onchange = load;
+document.getElementById("date").value = ymd(new Date());
+</script>

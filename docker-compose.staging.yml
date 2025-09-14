@@ -1,0 +1,14 @@
+﻿services:
+  backend:
+    build: ./backend
+    environment:
+      - APP_ENV=staging
+    ports:
+      - "8001:8000"
+    depends_on:
+      - db
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_PASSWORD=ai_factory
+      - POSTGRES_DB=ai_factory

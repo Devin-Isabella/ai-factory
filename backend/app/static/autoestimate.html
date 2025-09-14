@@ -1,0 +1,60 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>AutoEstimate Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:24px;line-height:1.4;}
+    h1{margin-bottom:8px}
+    .card{border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:12px 0}
+    input,button{font-size:16px;padding:8px}
+    pre{background:#f6f8fa;padding:12px;border-radius:8px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>AutoEstimate – Car Damage (MVP)</h1>
+  <div class="card">
+    <p>1) Enter an image URL <i>or</i> 2) upload a photo, then click Estimate.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <label>Agent ID</label>
+      <input id="agentId" value="1" style="width:80px"/>
+      <label>Image URL</label>
+      <input id="imgUrl" placeholder="https://example.com/damage.jpg" style="width:380px"/>
+      <input type="file" id="fileInput" accept="image/*"/>
+      <button id="go">Estimate</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Result</h3>
+    <pre id="out">—</pre>
+  </div>
+
+<script>
+async function estimate(){
+  const id = document.getElementById('agentId').value;
+  const url = document.getElementById('imgUrl').value.trim();
+  const file = document.getElementById('fileInput').files[0];
+  let body, headers = {};
+
+  if (file){
+    body = new FormData();
+    body.append("file", file);
+    if (url) body.append("image_url", url);
+  } else {
+    body = new FormData();
+    if (!url){ alert("Provide an image URL or choose a file."); return; }
+    body.append("image_url", url);
+  }
+
+  const r = await fetch(`/agents/${id}/estimate`, { method: "POST", body });
+  const t = await r.text();
+  try { document.getElementById('out').textContent = JSON.stringify(JSON.parse(t), null, 2); }
+  catch { document.getElementById('out').textContent = t; }
+}
+
+document.getElementById('go').onclick = estimate;
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+﻿import os
+import httpx
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+# If your key is project-scoped, set OPENAI_PROJECT in .env to your project id (not the key).
+OPENAI_PROJECT = os.getenv("OPENAI_PROJECT", "").strip()
+
+class OpenAIError(Exception):
+    pass
+
+async def invoke_openai(prompt: str, model: str = "gpt-4o-mini", max_tokens: int = 400):
+    if not OPENAI_API_KEY:
+        raise OpenAIError("Missing OPENAI_API_KEY")
+
+    url = f"{OPENAI_BASE_URL}/chat/completions"
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+    if OPENAI_PROJECT:
+        headers["OpenAI-Project"] = OPENAI_PROJECT
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful, safe assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.2
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.post(url, headers=headers, json=payload)
+        if r.status_code >= 400:
+            raise OpenAIError(f"{r.status_code} {r.reason_phrase}: {r.text}")
+        data = r.json()
+        return data["choices"][0]["message"]["content"]

@@ -1,0 +1,104 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Book an Appointment</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px;line-height:1.4}
+    label,input,button,select{font-size:16px;padding:8px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    table{border-collapse:collapse;width:100%;margin-top:8px}
+    th,td{border:1px solid #e5e7eb;padding:8px;text-align:left}
+    .card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:8px 0}
+  </style>
+</head>
+<body>
+  <h1>Book an Appointment</h1>
+  <div class="card">
+    <div class="row">
+      <label>Calendar ID</label>
+      <input id="calId" placeholder="e.g. 2b40f244" />
+    </div>
+    <div class="row">
+      <label>Date</label>
+      <input id="date" type="date" />
+      <button id="load">Load Slots</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Available Slots</h3>
+    <table id="slotsTbl"><thead><tr><th>Start</th><th>End</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>Your details</h3>
+    <div class="row">
+      <input id="name"  placeholder="Your name" />
+      <input id="email" placeholder="you@example.com" />
+    </div>
+    <div id="msg" style="color:#2563eb"></div>
+  </div>
+
+<script>
+const api = (p, opts={}) => fetch(p, opts).then(async r => {
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+});
+
+const qs = new URLSearchParams(location.search);
+const calIdInput = document.getElementById('calId');
+const dateInput  = document.getElementById('date');
+const loadBtn    = document.getElementById('load');
+const tbody      = document.querySelector('#slotsTbl tbody');
+const nameEl     = document.getElementById('name');
+const emailEl    = document.getElementById('email');
+const msg        = document.getElementById('msg');
+
+// Pre-fill from URL ?cal_id=...&date=YYYY-MM-DD
+if (qs.get('cal_id')) calIdInput.value = qs.get('cal_id');
+if (qs.get('date'))   dateInput.value  = qs.get('date');
+
+async function loadSlots() {
+  tbody.innerHTML = '';
+  const calId = calIdInput.value.trim();
+  const date  = dateInput.value;
+  if (!calId || !date) { msg.textContent = 'Enter calendar id and date.'; return; }
+  msg.textContent = 'Loading...';
+  try {
+    const data = await api(`/calendar/${encodeURIComponent(calId)}/slots?date_str=${encodeURIComponent(date)}`);
+    data.slots.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.start}</td><td>${s.end}</td><td><button>Book</button></td>`;
+      tr.querySelector('button').onclick = () => book(calId, s.start, s.end);
+      tbody.appendChild(tr);
+    });
+    msg.textContent = data.slots.length ? '' : 'No slots for that date.';
+  } catch (e) {
+    msg.textContent = e.message;
+  }
+}
+
+async function book(calId, start, end) {
+  const name  = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  if (!name || !email) { msg.textContent = 'Name and email required.'; return; }
+  msg.textContent = 'Booking...';
+  try {
+    const res = await api(`/calendar/${encodeURIComponent(calId)}/book`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name, email, start, end })
+    });
+    msg.textContent = `Booked: ${res.start}–${res.end} for ${res.attendee.name}`;
+    await loadSlots(); // refresh list
+  } catch (e) {
+    msg.textContent = e.message;
+  }
+}
+
+document.getElementById('load').onclick = loadSlots;
+</script>
+</body>
+</html>

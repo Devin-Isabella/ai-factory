@@ -1,0 +1,61 @@
+﻿<!doctype html><meta charset="utf-8"/>
+<title>SAFE Bot Store — Home</title>
+<style>
+  body{font-family:system-ui;margin:20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+  .muted{color:#6b7280;font-size:12px}
+  .cta{padding:10px 14px;border-radius:10px;border:1px solid #111}
+</style>
+<div id="nav"></div>
+<h2>Welcome</h2>
+<p id="stateMsg" class="muted"></p>
+<div style="margin:12px 0">
+  <a class="cta" id="searchBtn" href="/ui/store.html">Search</a>
+  <a class="cta" id="buildBtn" href="/ui/builder.html">Build</a>
+</div>
+<h3>Featured (Published) Bots</h3>
+<div id="cards" class="grid"></div>
+<script src="/ui/app.js"></script>
+<script>
+(async ()=>{
+  App.nav("#nav");
+  const me = await App.me();
+  document.getElementById("stateMsg").textContent =
+    me ? "Signed in as " + me.email + ". Explore published bots or go to My Profile to manage yours."
+       : "You are not signed in. You can browse and try published bots in a temporary sandbox.";
+
+  // Gate buttons if not signed in
+  const buildBtn = document.getElementById("buildBtn");
+  if(!me){
+    buildBtn.addEventListener("click",(e)=>{ e.preventDefault(); location.href="/ui/login.html?next=/ui/builder.html"; });
+  }
+
+  // Load published bots (guests see only published by API filter)
+  const r = await fetch("/store/search?q=");
+  const j = await r.json();
+  const c = document.getElementById("cards");
+  c.innerHTML="";
+  (j.items||[]).forEach(x=>{
+    const d = document.createElement("div"); d.className="card";
+    d.innerHTML = `
+      <div><b>${x.bot_name}</b> <span class="muted">#${x.bot_id}</span></div>
+      <div class="muted">${x.tone_profile} — safety: ${x.safety_rating}</div>
+      <div style="margin-top:8px">
+        <button data-id="${x.bot_id}" class="tryBtn">Try in Sandbox</button>
+        <a href="/ui/bot.html?bot=${x.bot_id}">Details</a>
+      </div>`;
+    c.appendChild(d);
+  });
+
+  // Sandbox Try (ephemeral)
+  c.addEventListener("click", async (e)=>{
+    const b = e.target.closest(".tryBtn");
+    if(!b) return;
+    const botId = Number(b.getAttribute("data-id"));
+    const r = await fetch("/sandbox/start", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bot_id: botId }) });
+    const s = await r.json();
+    alert("Sandbox session ready (temporary): " + s.session_id + "\nThis will be auto-discarded when you leave.");
+  });
+})();
+</script>

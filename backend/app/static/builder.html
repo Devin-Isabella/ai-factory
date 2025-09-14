@@ -1,0 +1,29 @@
+﻿<!doctype html><meta charset="utf-8"/>
+<title>Builder Bot</title>
+<style>body{font-family:system-ui;margin:20px} input,select,button{padding:8px;margin:4px 0}</style>
+<script src="/ui/app.js"></script>
+<h2>Builder</h2>
+<label>Use case</label><br/><input id="use" style="width:420px"/><br/>
+<label>Expected monthly interactions</label><br/><input id="i" type="number" value="1000"/><br/>
+<label>Deployment</label><br/>
+<select id="dep"><option>link</option><option>widget</option></select><br/>
+<button id="quote">Get Quote</button>
+<pre id="q" style="background:#f3f4f6;padding:10px;border-radius:10px"></pre>
+<hr/>
+<label>Name</label><br/><input id="name" placeholder="My Bot"/><br/>
+<button id="go">Confirm & Create</button>
+<pre id="out" style="background:#ecfeff;padding:10px;border-radius:10px"></pre>
+<script>
+quote.onclick=async ()=>{
+  const r=await fetch('/builder/quote',{method:'POST',headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({model:'gpt-4o-mini', expected_monthly_interactions: Number(i.value||'0')})
+  }); const j=await r.json(); q.textContent=JSON.stringify(j,null,2);
+};
+go.onclick=async ()=>{
+  const body={name: name.value||'Untitled', description: use.value, category:'custom', use_case: use.value,
+              expected_monthly_interactions:Number(i.value||'0'), deployment: dep.value};
+  const r=await fetch('/builder/confirm',{method:'POST',headers:Object.assign({'Content-Type':'application/json'}, App.headers()), body: JSON.stringify(body)});
+  const j=await r.json(); out.textContent=JSON.stringify(j,null,2);
+};
+</script>
+

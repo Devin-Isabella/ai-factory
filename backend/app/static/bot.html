@@ -1,0 +1,15 @@
+﻿<!doctype html><meta charset="utf-8"/>
+<title>Bot</title>
+<style>body{font-family:system-ui;margin:20px} .note{background:#fef3c7;border:1px solid #f59e0b;padding:8px;border-radius:10px;margin-bottom:12px}</style>
+<div id="wm" class="note" style="display:none">Sandbox preview — responses may be filtered/watermarked.</div>
+<div id="info"></div>
+<script>
+const p=new URLSearchParams(location.search); const id=p.get("bot"); const sandbox=p.get("sandbox")==="1";
+if(sandbox) document.getElementById("wm").style.display="block";
+async function load(){
+  const r=await fetch(`/store/bots/${id}/card`); const j=await r.json();
+  document.getElementById('info').innerHTML = `<h2>${j.bot_name} <span style="color:#6b7280">#${j.bot_id}</span></h2>
+    <div>tone: ${j.tone_profile} • safety: ${j.safety_rating}</div>`;
+}
+load();
+</script>

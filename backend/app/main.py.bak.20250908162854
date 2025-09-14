@@ -1,0 +1,311 @@
+﻿from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+
+from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+import httpx
+import os, uuid
+
+from .db import SessionLocal, engine, Base
+from .models import Agent, InteractionLog
+from .brain import build_agent_spec
+from .checker import run_checker
+from .routes import support
+from .routes import owner
+from .routes import onboard
+from .routes import owner
+from .routes import billing
+from .routes import owner
+from .llm_adapter import invoke_openai
+from .vision import detect_damage
+
+Base.metadata.create_all(bind=engine)
+
+load_dotenv()
+app = FastAPI(title="AI Factory")
+
+
+app.include_router(safety.router)
+app.include_router(publish.router)
+app.include_router(adopt.router)
+app.include_router(publisher.router)
+app.include_router(owner.router)
+app.include_router(onboard.router)
+app.include_router(billing.router)
+from .routes import calendar as calendar_routes
+from .routes import owner
+app.include_router(calendar_routes.router)
+
+
+app.include_router(support.router)
+# Allow local testing via curl, Postman, browser, etc.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve minimal UI (we already put index.html under app/static)
+app.mount("/ui", StaticFiles(directory="app/static", html=True), name="ui")
+
+class AgentRequest(BaseModel):
+    name: str
+    description: str
+    category: str
+    tone: str = "neutral"
+    target: str = "web"
+    budget_guard: str = "balanced"
+    needs: list[str] = []
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.post("/agents")
+async def create_agent(req: AgentRequest):
+    db: Session = SessionLocal()
+    try:
+        spec = build_agent_spec(req.dict())
+        agent = Agent(
+            name=req.name,
+            description=req.description,
+            category=req.category,
+            spec=spec,
+        )
+        db.add(agent)
+        db.commit()
+        db.refresh(agent)
+        return agent
+    finally:
+        db.close()
+
+@app.get("/agents")
+async def list_agents():
+    db: Session = SessionLocal()
+    try:
+        agents = db.execute(select(Agent)).scalars().all()
+        return agents
+    finally:
+        db.close()
+
+@app.post("/agents/{agent_id}/test")
+async def test_agent(agent_id: int):
+    db: Session = SessionLocal()
+    try:
+        agent = db.get(Agent, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        prompt = f"Run a quick ethics + trust check for agent {agent.name}"
+        # pick model from spec fallback chain
+        model = agent.spec.get("primary_model") or agent.spec.get("routing", {}).get("primary") or "gpt-4o-mini"
+
+        try:
+            reply = await invoke_openai(
+                prompt,
+                model=model,
+                max_tokens=agent.spec.get("limits", {}).get("max_output_tokens", 300)
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                fallback = agent.spec.get("fallbacks", []) or agent.spec.get("routing", {}).get("escalation", [])
+                if fallback:
+                    reply = await invoke_openai(
+                        prompt,
+                        model=fallback[0],
+                        max_tokens=agent.spec.get("limits", {}).get("max_output_tokens", 300)
+                    )
+                else:
+                    raise HTTPException(status_code=503, detail="Quota exceeded and no fallback available")
+            else:
+                raise
+
+        result = run_checker({"quick_check": reply})
+        passed = bool(result.get("passed", False))
+        trust_score = float(result.get("trust_score", 0.0))
+
+        agent.ethics_passed = passed
+        agent.trust_score = trust_score
+        db.add(agent)
+        db.commit()
+        db.refresh(agent)
+
+        return {"passed": passed, "trust_score": trust_score, "details": result}
+    finally:
+        db.close()
+
+class InvokeRequest(BaseModel):
+    agent_id: int
+    message: str
+
+@app.post("/invoke")
+async def invoke(req: InvokeRequest):
+    db: Session = SessionLocal()
+    try:
+        agent = db.get(Agent, req.agent_id)
+        if not agent or not agent.ethics_passed:
+            raise HTTPException(status_code=400, detail="Agent not found or not approved")
+
+        model = agent.spec.get("primary_model") or agent.spec.get("routing", {}).get("primary") or "gpt-4o-mini"
+
+        try:
+            reply = await invoke_openai(
+                req.message,
+                model=model,
+                max_tokens=agent.spec.get("limits", {}).get("max_output_tokens", 300)
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                fallback = agent.spec.get("fallbacks", []) or agent.spec.get("routing", {}).get("escalation", [])
+                if fallback:
+                    reply = await invoke_openai(
+                        req.message,
+                        model=fallback[0],
+                        max_tokens=agent.spec.get("limits", {}).get("max_output_tokens", 300)
+                    )
+                else:
+                    raise HTTPException(status_code=503, detail="Quota exceeded and no fallback available")
+            else:
+                raise
+
+        log = InteractionLog(
+            agent_id=req.agent_id,
+            prompt=req.message,
+            response=reply,
+            user_sentiment_before="neutral",
+            user_sentiment_after="neutral",
+            usefulness_score=0.0
+        )
+        db.add(log)
+        db.commit()
+
+        return {"reply": reply, "model_used": model}
+    finally:
+        db.close()
+
+# === NEW: damage estimate endpoint (URL or file upload) ===
+@app.post("/agents/{agent_id}/estimate")
+async def estimate_damage(
+    agent_id: int,
+    image_url: str | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
+):
+    db: Session = SessionLocal()
+    try:
+        agent = db.get(Agent, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        model = agent.spec.get("primary_model") or agent.spec.get("routing", {}).get("primary") or "gpt-4o-mini"
+    finally:
+        db.close()
+
+    final_image_url = image_url
+    if file is not None:
+        uploads_dir = "app/static/uploads"
+        os.makedirs(uploads_dir, exist_ok=True)
+        _, ext = os.path.splitext(file.filename or "image.jpg")
+        if not ext:
+            ext = ".jpg"
+        fname = f"{uuid.uuid4().hex}{ext}"
+        fpath = os.path.join(uploads_dir, fname)
+        with open(fpath, "wb") as f:
+            f.write(await file.read())
+        final_image_url = f"http://localhost:8000/ui/uploads/{fname}"
+
+    if not final_image_url:
+        raise HTTPException(status_code=400, detail="Provide image_url or file")
+
+    try:
+        result = await detect_damage(final_image_url, model=model)
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {
+        "agent_id": agent_id,
+        "image_url": final_image_url,
+        "model": model,
+        **result,
+    }
+
+# Simple logs endpoint to view interactions
+@app.get("/agents/{agent_id}/logs")
+async def list_logs(agent_id: int, limit: int = 20):
+    db: Session = SessionLocal()
+    try:
+        rows = (
+            db.query(InteractionLog)
+              .filter(InteractionLog.agent_id == agent_id)
+              .order_by(InteractionLog.created_at.desc())
+              .limit(limit)
+              .all()
+        )
+        out = []
+        for r in rows:
+            out.append({
+                "id": r.id,
+                "created_at": getattr(r.created_at, "isoformat", lambda: str(r.created_at))(),
+                "prompt": r.prompt,
+                "response": r.response,
+                "user_sentiment_before": r.user_sentiment_before,
+                "user_sentiment_after": r.user_sentiment_after
+            })
+        return out
+    finally:
+        db.close()
+
+
+
+
+
+
+
+
+
+from .routes import store
+from .routes import builder
+from .routes import safety
+from .routes import publish
+
+app.include_router(store.router)
+app.include_router(builder.router)
+app.include_router(safety.router)
+app.include_router(publish.router)
+
+from .routes import store as _store_router
+from .routes import builder as _builder_router
+from .routes import safety as _safety_router
+from .routes import publish as _publish_router
+
+try:
+    app.include_router(_store_router.router)
+    app.include_router(_builder_router.router)
+    app.include_router(_safety_router.router)
+    app.include_router(_publish_router.router)
+except NameError:
+    # if 'app' is not in scope yet, import it from this module's globals
+    from .main import app as _app_ref  # no-op if circular; adjust if needed
+    _app_ref.include_router(_store_router.router)
+    _app_ref.include_router(_builder_router.router)
+    _app_ref.include_router(_safety_router.router)
+    _app_ref.include_router(_publish_router.router)
+
+from .routes import auth as _auth_router
+from .routes import owner as _owner_router
+from .routes import sandbox as _sandbox_router
+
+try:
+    app.include_router(_auth_router.router)
+    app.include_router(_owner_router.router)
+    app.include_router(_sandbox_router.router)
+except NameError:
+    from .main import app as _app_ref
+    _app_ref.include_router(_auth_router.router)
+    _app_ref.include_router(_owner_router.router)
+    _app_ref.include_router(_sandbox_router.router)
+

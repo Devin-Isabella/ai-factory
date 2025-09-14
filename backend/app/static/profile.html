@@ -1,0 +1,33 @@
+﻿<!doctype html><meta charset="utf-8"/>
+<title>My Profile — SAFE Bot Store</title>
+<style>body{font-family:system-ui;margin:20px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{border:1px solid #e5e7eb;border-radius:12px;padding:12px}</style>
+<div id="nav"></div>
+<h2>My Profile</h2>
+<div id="me" class="muted"></div>
+<h3>My Bots</h3>
+<div id="cards" class="grid"></div>
+<script src="/ui/app.js"></script>
+<script>
+(async ()=>{
+  App.nav("#nav");
+  const user = await App.me();
+  if(!user){ location.href="/ui/login.html?next=/ui/profile.html"; return; }
+  document.getElementById("me").textContent = user.email;
+
+  const r = await fetch("/owner/my-bots",{ headers: App.headers() });
+  if(!r.ok){ alert("Could not load bots"); return; }
+  const j = await r.json();
+  const c = document.getElementById("cards");
+  c.innerHTML="";
+  (j.items||[]).forEach(x=>{
+    const d = document.createElement("div"); d.className="card";
+    d.innerHTML = `
+      <div><b>${x.bot_name}</b> <span style="color:#6b7280">#${x.bot_id}</span></div>
+      <div style="margin-top:8px">
+        <a href="/ui/bot.html?bot=${x.bot_id}">Open</a>
+      </div>`;
+    c.appendChild(d);
+  });
+})();
+</script>

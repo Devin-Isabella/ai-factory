@@ -1,0 +1,135 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Calendar Onboarding</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px;line-height:1.45}
+    .chat{max-width:780px;margin:auto}
+    .b{background:#eef2ff;padding:10px 12px;border-radius:10px;margin:8px 0}
+    .u{background:#f3f4f6;padding:10px 12px;border-radius:10px;margin:8px 0;text-align:right}
+    input,select,button{font-size:16px;padding:8px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    .actions{margin-top:10px}
+    .quote{background:#ecfeff;border:1px solid #bae6fd;padding:10px;border-radius:10px;margin-top:10px}
+  </style>
+</head>
+<body>
+<div class="chat">
+  <div class="b">Hi! Thanks for using our calendar setup. I’ll ask a few quick questions:</div>
+  <div id="log"></div>
+
+  <div class="row">
+    <input id="msg" style="flex:1" placeholder="Type your answer…" />
+    <button id="send">Send</button>
+  </div>
+
+  <div id="quote" class="quote" style="display:none"></div>
+  <div class="actions" id="actions" style="display:none">
+    <button id="pay">Pay & Activate</button>
+  </div>
+</div>
+
+<script>
+const say = (txt, cls="b")=>{
+  const d=document.createElement("div");
+  d.className=cls; d.textContent=txt;
+  log.appendChild(d); d.scrollIntoView({behavior:"smooth", block:"end"});
+};
+
+const api = (p, opts={})=> fetch(p, opts).then(async r=>{
+  if(!r.ok){ throw new Error(await r.text()); }
+  return r.json();
+});
+
+const log = document.getElementById("log");
+const input = document.getElementById("msg");
+const send = document.getElementById("send");
+const quoteBox = document.getElementById("quote");
+const actions = document.getElementById("actions");
+const payBtn = document.getElementById("pay");
+
+const state = {
+  step: 0,
+  answers: {},
+  client: null,
+  cal: null,
+  quote: null
+};
+
+const steps = [
+  {key:"name", q:"First, what’s your name?"},
+  {key:"email", q:"Great! What email should we notify?"},
+  {key:"timezone", q:"What time zone? (e.g. America/Los_Angeles)"},
+  {key:"slot_minutes", q:"Slot length in minutes? (e.g. 30)"},
+  {key:"work_start_hour", q:"Work day start hour (0–23)? (e.g. 9)"},
+  {key:"work_end_hour", q:"Work day end hour (0–23)? (e.g. 17)"}
+];
+
+async function next() {
+  if (state.step >= steps.length) {
+    // Create client
+    say("Creating your account…");
+    const obRes = await api("/onboard", {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: state.answers.name, email: state.answers.email})});
+    state.client = obRes;
+    say(`Your client ID: ${obRes.client_code}`);
+
+    // Create calendar
+    say("Creating your calendar…");
+    const calBody = {
+      owner_name: state.answers.name,
+      owner_email: state.answers.email,
+      timezone: state.answers.timezone || "America/Los_Angeles",
+      slot_minutes: parseInt(state.answers.slot_minutes||"30"),
+      work_start_hour: parseInt(state.answers.work_start_hour||"9"),
+      work_end_hour: parseInt(state.answers.work_end_hour||"17")
+    };
+    const calRes = await api("/calendar", {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(calBody)});
+    state.cal = calRes;
+    say(`Calendar ready. Booking link: ${location.origin}${calRes.booking_url}`);
+
+    // Quote
+    say("Calculating your minimum prepaid usage…");
+    const q = await api("/billing/quote", {method:"POST", headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:"gpt-4o-mini", est_tokens_per_interaction:500, min_block:5000 })});
+    state.quote = q;
+    quoteBox.style.display = "block";
+    quoteBox.textContent = `Model: ${q.model}
+Estimated interactions: ${q.interactions}
+Estimated tokens total: ${q.est_tokens_total}
+Infra cost: $${q.infra_cost.toFixed(2)}
+Safety pool (included): $${q.safety_pool.toFixed(2)}
+Total due now: $${q.customer_price.toFixed(2)} ${q.currency}`;
+    actions.style.display = "block";
+    say("When you’re ready, click Pay & Activate to go live.");
+    return;
+  }
+  // Ask next question
+  const s = steps[state.step];
+  say(s.q);
+}
+
+send.onclick = async ()=>{
+  const v = input.value.trim();
+  if (!v) return;
+  say(v, "u");
+  const s = steps[state.step];
+  if (s) state.answers[s.key] = v;
+  input.value = "";
+  state.step++;
+  try { await next(); } catch(e){ say(e.message); }
+};
+input.addEventListener("keypress", e=>{ if(e.key==="Enter") send.click(); });
+
+payBtn.onclick = async ()=>{
+  if (!state.quote) return;
+  const co = await api("/billing/checkout", {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_usd: state.quote.customer_price, note: state.client?.client_code})});
+  location.href = co.payment_url; // mock
+};
+
+say("Welcome!");
+next().catch(err=>say(err.message));
+</script>
+</body>
+</html>

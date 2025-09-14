@@ -1,0 +1,20 @@
+﻿services:
+  - name: ai-factory-prod
+    type: web
+    env: docker
+    plan: starter          # choose your plan in Render UI later
+    branch: main
+    autoDeploy: false      # manual/“one button” only
+    healthCheckPath: /health
+    domains:
+      - api.aibotfoundations.app
+
+  - name: ai-factory-experimental
+    type: web
+    env: docker
+    plan: starter
+    branch: develop
+    autoDeploy: true       # every push to develop deploys here
+    healthCheckPath: /health
+    domains:
+      - experimental.api.aibotfoundations.app

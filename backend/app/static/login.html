@@ -1,0 +1,24 @@
+﻿<!doctype html><meta charset="utf-8"/>
+<title>Sign in — SAFE Bot Store</title>
+<style>body{font-family:system-ui;margin:20px} input,button{padding:10px;margin:6px 0}</style>
+<div id="nav"></div>
+<h2>Log in / Sign up</h2>
+<p>Developer login: enter your email, we’ll issue a local token instantly (no password, dev only).</p>
+<input id="email" placeholder="you@example.com" style="width:320px"/>
+<input id="name" placeholder="Your name (optional)" style="width:320px"/><br/>
+<button id="go">Continue</button>
+<script src="/ui/app.js"></script>
+<script>
+App.nav("#nav");
+const next = new URLSearchParams(location.search).get("next") || "/ui/index.html";
+document.getElementById("go").onclick = async ()=>{
+  const email = document.getElementById("email").value.trim();
+  const name  = document.getElementById("name").value.trim();
+  if(!email){ alert("Enter email"); return; }
+  const r = await fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({email,name})});
+  if(!r.ok){ alert("Login failed"); return; }
+  const j = await r.json();
+  App.token = j.token;
+  location.href = next;
+};
+</script>

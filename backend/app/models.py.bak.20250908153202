@@ -1,0 +1,63 @@
+﻿import datetime as dt
+
+    if ($line -notmatch "ForeignKey") { $line = $line -replace "`r?`n?$","" + ", ForeignKey`r`n" }
+  
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
+
+from .db import Base
+
+# ---------------- Agent ----------------
+class Agent(Base):
+    __tablename__ = "agents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    description: Mapped[str] = mapped_column(String(1000), default="")
+    category: Mapped[str] = mapped_column(String(80), index=True)
+
+    # core config chosen by the Brain (model, tone, tools, limits)
+    spec: Mapped[dict] = mapped_column(JSON)
+
+    # checker status & last score
+    ethics_passed: Mapped[bool] = mapped_column(Boolean, default=False)
+    trust_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+# --------------- InteractionLog ---------------
+class InteractionLog(Base):
+    __tablename__ = "interaction_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_id: Mapped[int] = mapped_column(Integer, index=True)
+    prompt: Mapped[str] = mapped_column(String(8000))
+    response: Mapped[str] = mapped_column(String(16000))
+
+    user_sentiment_before: Mapped[str] = mapped_column(String(16), default="neutral")
+    user_sentiment_after: Mapped[str] = mapped_column(String(16), default="neutral")
+    usefulness_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+# ---------------- Client ----------------
+class Client(Base):
+    __tablename__ = "clients"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    email: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+
