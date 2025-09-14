@@ -1,11 +1,11 @@
 ﻿from fastapi import FastAPI
 
-app = FastAPI(title="AI Factory", version="0.1.0")
+app = FastAPI()
 
-@app.get("/health", summary="Health")
-def health():
+@app.get("/health")
+async def health():
     return {"status": "ok"}
 
-@app.get("/info", summary="Info")
-def info():
-    return {"name": "ai-factory-experimental", "env": "experimental"}
+@app.get("/info")
+async def info():
+    return {"app": "ai-factory", "version": "0.1.0"}
