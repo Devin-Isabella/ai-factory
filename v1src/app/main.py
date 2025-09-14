@@ -1,14 +1,13 @@
-﻿from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI
-import os, datetime
+﻿from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import datetime, pathlib
 
 # --- bot store bits ---
 from . import db
 from .router_bots import router as bots_router
+from .router_store import router as store_router
 
-
-app.mount('/static', StaticFiles(directory=str((__import__('pathlib').Path(__file__).parent / 'static'))), name='static')
-
+app = FastAPI(title="AI Factory v1")
 
 @app.get("/health")
 def health():
@@ -28,22 +27,22 @@ def info():
         "openapi": "/openapi.json"
     }
 
-# init the sqlite db and include the /bots router
+# init the sqlite db
 try:
     db.init_db()
 except Exception as e:
     print("DB init failed:", e)
 
+# mount static AFTER app exists
+app.mount(
+    "/static",
+    StaticFiles(directory=str((pathlib.Path(__file__).parent / "static"))),
+    name="static",
+)
+
+# include routers AFTER app exists
 try:
-    app.include_router(bots_router)  # -> /bots, /bots/{id}, /bots/{id}/deploy
+    app.include_router(bots_router)    # /bots...
+    app.include_router(store_router)   # /store (HTML)
 except Exception as e:
     print("Router include failed:", e)
-
-from .router_store import router as store_router
-try:
-    app.include_router(store_router)
-except Exception as e:
-    print('Store router include failed:', e)
-
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
