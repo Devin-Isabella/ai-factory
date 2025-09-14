@@ -1,4 +1,5 @@
-﻿from fastapi import FastAPI
+﻿from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 
 app = FastAPI(title="AI Factory (experimental)", version="0.1.0")
 
@@ -18,3 +19,10 @@ try:
     app.include_router(bots_router)
 except Exception as e:
     print("Router include failed:", e)
+
+from .router_store import router as store_router
+try:
+    app.include_router(store_router)
+except Exception as e:
+    print('Store router include failed:', e)
+

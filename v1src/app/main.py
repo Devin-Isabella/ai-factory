@@ -1,11 +1,14 @@
-﻿from fastapi import FastAPI
+﻿from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 import os, datetime
 
 # --- bot store bits ---
 from . import db
 from .router_bots import router as bots_router
 
-app = FastAPI(title="AI Factory v1")
+
+app.mount('/static', StaticFiles(directory=str((__import__('pathlib').Path(__file__).parent / 'static'))), name='static')
+
 
 @app.get("/health")
 def health():
@@ -35,3 +38,10 @@ try:
     app.include_router(bots_router)  # -> /bots, /bots/{id}, /bots/{id}/deploy
 except Exception as e:
     print("Router include failed:", e)
+
+from .router_store import router as store_router
+try:
+    app.include_router(store_router)
+except Exception as e:
+    print('Store router include failed:', e)
+
