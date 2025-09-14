@@ -28,3 +28,15 @@ def info():
         "openapi": "/openapi.json"
     }
 
+
+# --- bots api wiring (added) ---
+from . import db  # sqlite file at /app/data.db
+from .router_bots import router as bots_router
+try:
+    db.init_db()
+except Exception as e:
+    print("DB init failed:", e)
+try:
+    app.include_router(bots_router)
+except Exception as e:
+    print("Router include failed:", e)
