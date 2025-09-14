@@ -1,0 +1,66 @@
+﻿from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
+# Core info router (relative import; fallback stub if missing)
+try:
+    from .routes.info import router as info_router
+except Exception:
+    from fastapi import APIRouter
+    info_router = APIRouter(prefix="/info", tags=["info"])
+    @info_router.get("")
+    def info_root():
+        return {"app": "ai-factory", "status": "ok", "note": "placeholder info router"}
+
+# New routers
+try:
+    from .routes.monitor import router as monitor_router
+except Exception:
+    from fastapi import APIRouter
+    monitor_router = APIRouter(prefix="/monitor", tags=["monitor"])
+    @monitor_router.get("/stats")
+    def _mon_stub(): return {"note": "monitor stub active"}
+
+try:
+    from .routes.builder import router as builder_router
+except Exception:
+    from fastapi import APIRouter
+    builder_router = APIRouter(prefix="/builder", tags=["builder"])
+    @builder_router.get("/tones")
+    def _tones_stub(): return {"tones": ["concise-helpful"]}
+
+try:
+    from .routes.admin import router as admin_router
+except Exception:
+    from fastapi import APIRouter
+    admin_router = APIRouter(prefix="/admin", tags=["admin"])
+    @admin_router.get("/ping")
+    def _admin_stub(): return {"admin": "stub"}
+
+app = FastAPI(title="AI Factory", version="1.0.0")
+
+# CORS: permissive for now; can lock down later
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+# static
+app.mount("/static", StaticFiles(directory="backend/static", html=True), name="static")
+
+# include routers
+app.include_router(info_router)
+app.include_router(ops_logs_router)
+app.include_router(monitor_router)
+app.include_router(ops_logs_router)
+app.include_router(builder_router)
+app.include_router(ops_logs_router)
+app.include_router(admin_router)
+app.include_router(ops_logs_router)
+

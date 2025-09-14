@@ -1,0 +1,36 @@
+name: CI — placeholder until code exists
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      # Detect whether your real project files are present yet
+      - name: Detect project skeleton
+        id: detect
+        run: |
+          have="false"
+          if [ -f "docker-compose.yml" ] && [ -f "backend/app/main.py" ]; then
+            have="true"
+          fi
+          echo "have=$have" >> "$GITHUB_OUTPUT"
+
+      # Until files exist, just pass with a friendly message
+      - name: Placeholder success
+        if: steps.detect.outputs.have == 'false'
+        run: |
+          echo "No backend files yet (docker-compose.yml + backend/app/main.py)."
+          echo "Skipping real checks and marking CI green."
+
+      # When files exist, put the real steps here
+      - name: Real checks (future)
+        if: steps.detect.outputs.have == 'true'
+        run: |
+          echo "Run build/tests here once code is pushed."
