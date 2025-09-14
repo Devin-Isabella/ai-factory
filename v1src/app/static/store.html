@@ -1,0 +1,125 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AI Factory – App Store</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/store.css">
+</head>
+<body>
+  <header>
+    <h1>AI Factory – App Store</h1>
+    <a href="/docs" target="_blank">API Docs</a>
+  </header>
+
+  <section class="new-bot">
+    <h2>Create a bot</h2>
+    <form id="bot-form">
+      <div class="row">
+        <label>ID</label>
+        <input id="id" placeholder="hello-bot" required />
+      </div>
+      <div class="row">
+        <label>Name</label>
+        <input id="name" placeholder="Hello Bot" required />
+      </div>
+      <div class="row">
+        <label>Description</label>
+        <input id="description" placeholder="Says hi" />
+      </div>
+      <div class="row">
+        <label>Status</label>
+        <select id="status">
+          <option value="draft" selected>draft</option>
+          <option value="active">active</option>
+        </select>
+      </div>
+      <button type="submit">Create</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Bots</h2>
+    <div id="bots" class="grid"></div>
+  </section>
+
+  <template id="bot-card">
+    <div class="card">
+      <h3 class="title"></h3>
+      <p class="desc"></p>
+      <p class="meta"></p>
+      <div class="actions">
+        <button class="deploy">Deploy</button>
+        <button class="refresh">Refresh</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+  const $ = s => document.querySelector(s);
+
+  async function fetchJSON(url, opts={}) {
+    const r = await fetch(url, Object.assign({headers: {'Content-Type':'application/json'}}, opts));
+    if (!r.ok) throw new Error(await r.text());
+    return await r.json();
+  }
+
+  function toArray(maybe) {
+    if (Array.isArray(maybe)) return maybe;
+    if (maybe && Array.isArray(maybe.value)) return maybe.value;
+    if (maybe && typeof maybe === 'object') return [maybe];
+    return [];
+  }
+
+  async function loadBots() {
+    const container = $("#bots");
+    container.innerHTML = "Loading…";
+    try {
+      const data = await fetchJSON("/bots");
+      const bots = toArray(data);
+      container.innerHTML = "";
+      if (bots.length === 0) { container.textContent = "No bots yet."; return; }
+
+      const tpl = $("#bot-card");
+      bots.forEach(b => {
+        const node = tpl.content.cloneNode(true);
+        node.querySelector(".title").textContent = `${b.name} (${b.id})`;
+        node.querySelector(".desc").textContent = b.description || "";
+        node.querySelector(".meta").textContent = `status: ${b.status} • updated: ${b.updated_at || '—'}`;
+
+        node.querySelector(".deploy").addEventListener("click", async () => {
+          try {
+            await fetchJSON(`/bots/${b.id}/deploy`, { method: "POST" });
+            await loadBots();
+          } catch (e) { alert("Deploy failed: " + e.message); }
+        });
+        node.querySelector(".refresh").addEventListener("click", loadBots);
+        container.appendChild(node);
+      });
+    } catch (e) {
+      container.textContent = "Failed to load bots: " + e.message;
+    }
+  }
+
+  $("#bot-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const body = {
+      id: $("#id").value.trim(),
+      name: $("#name").value.trim(),
+      description: $("#description").value.trim(),
+      status: $("#status").value
+    };
+    if (!body.id || !body.name) { alert("ID and Name are required"); return; }
+    try {
+      await fetchJSON("/bots", { method: "POST", body: JSON.stringify(body) });
+      $("#bot-form").reset();
+      await loadBots();
+    } catch (e) {
+      alert("Create failed: " + e.message);
+    }
+  });
+
+  loadBots();
+  </script>
+</body>
+</html>
