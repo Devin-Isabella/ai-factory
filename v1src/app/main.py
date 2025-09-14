@@ -45,3 +45,5 @@ try:
 except Exception as e:
     print('Store router include failed:', e)
 
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
