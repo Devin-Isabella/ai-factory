@@ -1,19 +1,15 @@
 ﻿from fastapi import APIRouter
-import subprocess, sys
+import subprocess
 
 router = APIRouter()
 
 @router.post("/powerrender/run")
 def run_script():
-    """
-    Minimal runner that executes a tiny Python command inside the container.
-    You can expand this later to accept a script/body and do more.
-    """
     try:
-        proc = subprocess.run(
-            [sys.executable, "-c", "print('powerrender ok')"],
-            capture_output=True, text=True, timeout=20, check=True
+        result = subprocess.run(
+            ["pwsh", "/app/scripts/powerrender.ps1"],
+            capture_output=True, text=True, check=True
         )
-        return {"ok": True, "stdout": proc.stdout.strip(), "stderr": proc.stderr.strip()}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return {"stdout": result.stdout, "stderr": result.stderr}
+    except subprocess.CalledProcessError as e:
+        return {"error": e.stderr or str(e)}
