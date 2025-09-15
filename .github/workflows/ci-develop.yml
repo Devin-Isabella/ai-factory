@@ -1,0 +1,25 @@
+﻿name: ci-develop
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for EXP to be healthy
+        run: |
+          BASE="https://ai-factory-experimental.onrender.com"
+          for i in {1..40}; do
+            if curl -fsS "$BASE/health" | jq -e '.status=="ok"' >/dev/null; then
+              echo "EXP healthy"; exit 0
+            fi
+            sleep 6
+          done
+          echo "EXP not healthy in time"; exit 1
+      - name: Smoke /bots and /store
+        run: |
+          BASE="https://ai-factory-experimental.onrender.com"
+          curl -fsS "$BASE/bots" || true
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/store")
+          test "$code" = "200"
