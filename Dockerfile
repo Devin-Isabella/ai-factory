@@ -11,18 +11,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /app
-
-# Copy code
-COPY v1src /app
-
-# Install Python deps
-RUN pip install --no-cache-dir fastapi uvicorn
-
-# Expose port
+# Expose port 8000
 EXPOSE 8000
 
-# Run app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# force rebuild 2025-09-14 19:26:58Z
+# Run the FastAPI app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
