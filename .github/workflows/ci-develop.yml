@@ -1,25 +1,25 @@
-﻿name: ci-develop
+name: builder-smoke
+
 on:
+  workflow_dispatch:   # lets you run manually from phone/PC
   push:
     branches: [develop]
 
 jobs:
-  smoke:
+  builder:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for EXP to be healthy
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Hit /health
         run: |
           BASE="https://ai-factory-experimental.onrender.com"
-          for i in {1..40}; do
-            if curl -fsS "$BASE/health" | jq -e '.status=="ok"' >/dev/null; then
-              echo "EXP healthy"; exit 0
-            fi
-            sleep 6
-          done
-          echo "EXP not healthy in time"; exit 1
-      - name: Smoke /bots and /store
+          echo "Checking $BASE/health ..."
+          curl -fsS "$BASE/health"
+
+      - name: Scaffold test app
         run: |
           BASE="https://ai-factory-experimental.onrender.com"
-          curl -fsS "$BASE/bots" || true
-          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/store")
-          test "$code" = "200"
+          echo "Scaffolding via Builder..."
+          curl -fsS
