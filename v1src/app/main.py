@@ -1,54 +1,33 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-import datetime, pathlib
+import os
 
-# --- bot store bits ---
-from . import db
-from .router_bots import router as bots_router
-from .router_store import router as store_router
+app = FastAPI()
 
-app = FastAPI(title="AI Factory v1")
-
+# Health check
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-@app.get("/")
-def root():
-    return {"hello": "world"}
+# Only mount static if it exists
+if os.path.isdir("v1src/app/static"):
+    app.mount("/static", StaticFiles(directory="v1src/app/static"), name="static")
 
-@app.get("/info")
-def info():
-    return {
-        "name": "ai-factory",
-        "version": "v1",
-        "started_at": datetime.datetime.utcnow().isoformat() + "Z",
-        "docs": "/docs",
-        "openapi": "/openapi.json"
-    }
-
-# init the sqlite db
+# Import routers if present
 try:
-    db.init_db()
+    from .bots import router as bots_router
+    app.include_router(bots_router)
 except Exception as e:
-    print("DB init failed:", e)
+    print("⚠️ Skipping bots router:", e)
 
-# mount static AFTER app exists
-app.mount(
-    "/static",
-    StaticFiles(directory=str((pathlib.Path(__file__).parent / "static"))),
-    name="static",
-)
-
-# include routers AFTER app exists
 try:
-    app.include_router(bots_router)    # /bots...
-    app.include_router(store_router)   # /store (HTML)
+    from .builder import router as builder_router
+    app.include_router(builder_router)
 except Exception as e:
-    print("Router include failed:", e)
+    print("⚠️ Skipping builder router:", e)
 
-from .powerrender import router as powerrender_router
-app.include_router(powerrender_router)  # exposes /powerrender/run
-
-from .builder import router as builder_router
-app.include_router(builder_router)
+try:
+    from .powerrender import router as powerrender_router
+    app.include_router(powerrender_router)
+except Exception as e:
+    print("⚠️ Skipping powerrender router:", e)
