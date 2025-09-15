@@ -30,7 +30,7 @@ async def run_script(request: Request):
         if not ps:
             # Default check script
             result = subprocess.run(
-                ["powershell", "/app/scripts/powerrender.ps1"],
+                ["sh", "/app/scripts/powerrender.ps1"],
                 capture_output=True, text=True, check=True
             )
             return {"ok": True, "stdout": result.stdout, "stderr": result.stderr}
@@ -42,7 +42,7 @@ async def run_script(request: Request):
 
         try:
             result = subprocess.run(
-                ["powershell", tmp_path],
+                ["sh", tmp_path],
                 capture_output=True, text=True, check=True
             )
             return {"ok": True, "stdout": result.stdout, "stderr": result.stderr}
@@ -55,4 +55,5 @@ async def run_script(request: Request):
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
 
