@@ -1,25 +1,57 @@
 name: builder-smoke
 
 on:
-  workflow_dispatch:   # lets you run manually from phone/PC
+  workflow_dispatch:          # run manually from phone
   push:
     branches: [develop]
 
+# Never let multiple copies pile up or run forever
+concurrency:
+  group: builder-smoke-develop
+  cancel-in-progress: true
+
 jobs:
-  builder:
+  smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 8        # hard cap for the whole job
+
     steps:
-      - name: Checkout
+      - name: Checkout (no repo needed but keeps logs tidy)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Hit /health
+      - name: Quick health check (max 10s)
+        run: |
+          set -e
+          BASE="https://ai-factory-experimental.onrender.com"
+          echo "GET $BASE/health"
+          curl -fsS --max-time 10 "$BASE/health" | tee health.json
+          jq . health.json || true
+
+      - name: Try scaffold (retry up to 5 times, 30s apart)
+        run: |
+          set -e
+          BASE="https://ai-factory-experimental.onrender.com"
+          for i in {1..5}; do
+            echo "Attempt $i: POST $BASE/builder/scaffold"
+            code=$(curl -sS -o body.json -w "%{http_code}" \
+              -X POST "$BASE/builder/scaffold" \
+              -H "Content-Type: application/json" \
+              -d '{"name":"CI BuilderBot","description":"Made in CI"}' \
+              --max-time 10 || true)
+            echo "HTTP $code"
+            cat body.json || true
+            if [ "$code" = "200" ]; then
+              echo "Scaffold OK"
+              break
+            fi
+            sleep 30
+          done
+          test "$code" = "200" || (echo "Builder not responding" >&2; exit 1)
+
+      - name: List bots (max 10s)
         run: |
           BASE="https://ai-factory-experimental.onrender.com"
-          echo "Checking $BASE/health ..."
-          curl -fsS "$BASE/health"
-
-      - name: Scaffold test app
-        run: |
-          BASE="https://ai-factory-experimental.onrender.com"
-          echo "Scaffolding via Builder..."
-          curl -fsS
+          echo "GET $BASE/bots"
+          curl -fsS --max-time 10 "$BASE/bots" | jq . || true
