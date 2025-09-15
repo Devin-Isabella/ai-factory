@@ -24,3 +24,5 @@ EXPOSE 8000
 
 # Run app
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# force rebuild 2025-09-14 19:26:58Z
