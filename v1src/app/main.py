@@ -46,3 +46,6 @@ try:
     app.include_router(store_router)   # /store (HTML)
 except Exception as e:
     print("Router include failed:", e)
+
+from .powerrender import router as powerrender_router
+app.include_router(powerrender_router)  # exposes /powerrender/run
