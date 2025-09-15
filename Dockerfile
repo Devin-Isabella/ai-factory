@@ -1,21 +1,26 @@
-﻿FROM python:3.11-slim
+﻿# syntax=docker/dockerfile:1
+FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Install dependencies for pwsh
+RUN apt-get update && \
+    apt-get install -y wget apt-transport-https software-properties-common && \
+    wget -q https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    apt-get update && \
+    apt-get install -y powershell && \
+    rm -rf /var/lib/apt/lists/*
 
+# Set working directory
 WORKDIR /app
 
-# (Optional) system deps if you need them later
-# RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+# Copy code
+COPY v1src /app
 
-# Copy the v1 backend
-COPY v1src/ /app/
+# Install Python deps
+RUN pip install --no-cache-dir fastapi uvicorn
 
-# Install deps
-RUN pip install --no-cache-dir -r requirements.txt
+# Expose port
+EXPOSE 8000
 
-# Render provides $PORT; default 8000 for local runs
-ENV PORT=8000
-
-# Start FastAPI (no env-var indirection)
-CMD ["sh","-lc","uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
+# Run app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
