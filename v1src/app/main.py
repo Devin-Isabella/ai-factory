@@ -49,3 +49,6 @@ except Exception as e:
 
 from .powerrender import router as powerrender_router
 app.include_router(powerrender_router)  # exposes /powerrender/run
+
+from .builder import router as builder_router
+app.include_router(builder_router)
