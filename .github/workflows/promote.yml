@@ -1,46 +1,48 @@
-﻿name: Promote Experimental to Production
-
+﻿name: promote-to-production
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Optional release tag (e.g. v0.5.2)"
-        required: false
 
 jobs:
   promote:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write    # needed to push merge/tag
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Ensure remotes and branches
+      - name: Merge develop -> main (no fast-forward)
         run: |
-          git remote -v
-          git fetch origin +refs/heads/*:refs/remotes/origin/*
-
-      - name: Merge develop -> main (fast-forward if possible)
-        run: |
-          set -e
+          git config user.name "CI"
+          git config user.email "ci@example.com"
           git checkout main
-          git merge --ff-only origin/develop || (
-            echo "Fast-forward not possible; doing a no-ff merge."
-            git merge --no-ff -m "Promote experimental to production" origin/develop
-          )
+          git merge --no-ff origin/develop -m "Promote experimental to production"
           git push origin main
-
-      - name: Optional tag
-        if: ${{ inputs.version != '' }}
+      - name: Wait for PROD to be healthy
         run: |
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
-
-      - name: Trigger Render production deploy (Deploy Hook)
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          BASE="https://ai-factory-production.onrender.com"
+          for i in {1..40}; do
+            if curl -fsS "$BASE/health" | jq -e '.status=="ok"' >/dev/null; then
+              echo "PROD healthy"; exit 0
+            fi
+            sleep 6
+          done
+          echo "PROD not healthy in time"; exit 1
+      - name: Smoke /bots and /store on PROD
         run: |
-          curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
+          BASE="https://ai-factory-production.onrender.com"
+          curl -fsS "$BASE/bots" || true
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/store")
+          test "$code" = "200"
+  rollback_on_fail:
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Revert last main commit
+        run: |
+          git config user.name "CI"
+          git config user.email "ci@example.com"
+          git checkout main
+          git reset --hard HEAD~1
+          git push --force origin main
