@@ -123,3 +123,28 @@
   </script>
 </body>
 </html>
+
+<script>
+async function onSearch(ev){
+  ev.preventDefault();
+  const q = document.getElementById('q').value.trim();
+  if (q.toLowerCase().startsWith('build:')) {
+    const name = q.slice(6).trim() || 'New App';
+    const resp = await fetch('/builder/scaffold', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, description:'Scaffolded via Builder', keywords: name.split(/\s+/)})
+    });
+    const data = await resp.json();
+    alert('Scaffolded: ' + data.id);
+    location.reload();
+    return;
+  }
+  // fallback to your existing search (if any) or list
+  location.href = '/store?q=' + encodeURIComponent(q);
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const f = document.getElementById('search-form');
+  if (f) f.addEventListener('submit', onSearch);
+});
+</script>
